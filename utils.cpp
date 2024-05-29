@@ -33,27 +33,6 @@ using namespace Eigen;
 
 typedef vector<vector<Eigen::Vector4d>> ContactList;
 
-//***********************************
-Eigen::Matrix4d estimatedPOSEinEigen_util(const double* rigidTransform) {
-
-    // Extract rotation matrix elements
-    Eigen::Matrix3d rotationMatrix;
-    rotationMatrix << rigidTransform[0], rigidTransform[1], rigidTransform[2],
-            rigidTransform[3], rigidTransform[4], rigidTransform[5],
-            rigidTransform[6], rigidTransform[7], rigidTransform[8];
-
-    Eigen::Vector3d translationVector(rigidTransform[9], rigidTransform[10], rigidTransform[11]);
-
-    Eigen::Matrix4d transformMatrix = Eigen::Matrix4d::Identity();
-
-    transformMatrix.block<3, 3>(0, 0) = rotationMatrix;
-
-    transformMatrix.block<3, 1>(0, 3) = translationVector;
-
-    return transformMatrix;
-}
-
-
 //*****************************************
 void utils_convert_to_vtk(cv::Mat &img, vtkPoints *pts, double depthThreshold) {
     double p[3];
