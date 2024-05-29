@@ -18,7 +18,7 @@ If VTK is installed but cmake can not find it, set the VTK_DIR entry to the fold
 ENDIF(NOT VTK_FOUND)
 set(vtk_LIBS vtkIO vtkCommon vtkRendering pthread rt GL GLU glut)
 
-#set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 17)
 find_package(OpenCV REQUIRED COMPONENTS highgui)
 
 IF(NOT OpenCV_FOUND)
