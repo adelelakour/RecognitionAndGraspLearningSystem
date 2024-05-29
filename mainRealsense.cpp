@@ -31,6 +31,7 @@
 #include <Eigen/Core>
 
 #include <nlohmann/json.hpp>
+#include <AndreiUtils/utilsJson.h>
 #include "CustomTypes.h"
 #include "globals.h"
 
@@ -135,12 +136,15 @@ void objrec_func(void *v_pipe, std::atomic<bool> &exitFlag, std::atomic<bool> &p
 
     auto *RealSense_pipeline = reinterpret_cast<rs2::pipeline *>(v_pipe);
 
-    ObjRecRANSAC objrec(40.0/*pair width*/, 4.5/*voxel size*/, 0.5/*pairs to save*/);
-    objrec.setVisibility(0.28); // 0.28
-    objrec.setRelativeNumberOfIllegalPoints(0.02);
-    objrec.setRelativeObjectSize(0.06);
-    objrec.setIntersectionFraction(0.1); // 0.08
-    objrec.setNumberOfThreads(8);
+    nlohmann::json paramConfig = AndreiUtils::readJsonFile("../objectRecognitionParameters.json");
+    ObjRecRANSAC objrec(paramConfig.at("pairWidth").get<double>(),
+                        paramConfig.at("voxelSize").get<double>(),
+                        paramConfig.at("relativeNumberOfPairsInHashTable").get<double>());
+    objrec.setVisibility(paramConfig.at("visibility").get<double>()); // 0.28
+    objrec.setRelativeNumberOfIllegalPoints(paramConfig.at("relativeNumberOfIllegalPoints").get<double>());
+    objrec.setRelativeObjectSize(paramConfig.at("relativeObjectSize").get<double>());
+    objrec.setIntersectionFraction(paramConfig.at("intersectionFraction").get<double>()); // 0.08
+    objrec.setNumberOfThreads(paramConfig.at("numberOfThreads").get<int>());
 
     // Load the models
     list<UserData *> userDataList; // Look inside the next function to see how to use this list
