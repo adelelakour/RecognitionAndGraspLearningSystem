@@ -8,7 +8,6 @@
 #include <cstdlib>
 //#include <ippcore.h>
 #include <pthread.h>
-#include <random>
 
 ObjRecRANSAC::ObjRecRANSAC(double pairwidth, double voxelsize, double relNumOfPairsInHashTable)
         : mModelDatabase(pairwidth, voxelsize) {
@@ -23,9 +22,9 @@ ObjRecRANSAC::ObjRecRANSAC(double pairwidth, double voxelsize, double relNumOfPa
     mRelativeObjSize = 0.05;
     mVoxelSize = voxelsize;
     mAbsZDistThresh = 1.5 * voxelsize;
-    mIntersectionFraction = 0.05;
+    mIntersectionFraction = 0.03;
 
-    mNumOfThreads = 2;
+    mNumOfThreads = 8;
     mNumOfHypotheses = 0;
     mUseAbsoluteObjSize = false;
 
@@ -143,7 +142,6 @@ bool ObjRecRANSAC::buildSceneOctree(vtkPoints *scene, double voxelsize) {
     // Compute a new one
     mSceneOctree->buildOctree(scene, voxelsize);
 
-    cout << "this is the size of constructed OCTREE " << mSceneOctree->getNumberOfFullLeafs() << endl;
     return true;
 }
 
@@ -160,36 +158,9 @@ void ObjRecRANSAC::init_rec(vtkPoints *scene) {
     mNumOfHypotheses = 0;
 }
 
-//############################################
-
-bool compareOctreeNodesByCenter(const OctreeNode* a, const OctreeNode* b) {
-    // Retrieve center coordinates of the nodes
-    double centerA[3], centerB[3];
-    centerA[0] = a->getCenter()[0];
-    centerA[1] = a->getCenter()[1];
-    centerA[2] = a->getCenter()[2];
-
-    centerB[0] = b->getCenter()[0];
-    centerB[1] = b->getCenter()[1];
-    centerB[2] = b->getCenter()[2];
-
-    // Compare center coordinates lexicographically
-    for (int i = 0; i < 3; ++i) {
-        if (centerA[i] != centerB[i]) {
-            return centerA[i] < centerB[i];
-        }
-    }
-    return false; // Nodes have the same center
-}
-
 //=============================================================================================================================
+
 void ObjRecRANSAC::doRecognition(vtkPoints *scene, double successProbability, list<PointSetShape *> &out) {
-
-    srand (1001);
-
-    auto startTime = std::chrono::steady_clock::now();
-    //srand(1000);
-
     if (scene->GetNumberOfPoints() <= 0)
         return;
 
@@ -204,9 +175,6 @@ void ObjRecRANSAC::doRecognition(vtkPoints *scene, double successProbability, li
     int i, numOfIterations = this->computeNumberOfIterations(successProbability, (int) scene->GetNumberOfPoints());
     vector<OctreeNode *> &fullLeaves = mSceneOctree->getFullLeafs();
 
-  /*  //********* I sorted fullLeaves according to the centroid of each voxel
-    std::sort(fullLeaves.begin(), fullLeaves.end(), compareOctreeNodesByCenter);*/
-
     if ((int) fullLeaves.size() < numOfIterations)
         numOfIterations = (int) fullLeaves.size();
 
@@ -216,35 +184,28 @@ void ObjRecRANSAC::doRecognition(vtkPoints *scene, double successProbability, li
     fflush(stdout);
 #endif
 
-    OctreeNode **leaves = new OctreeNode *[numOfIterations];  // leaves here means sampled N leaves
-
+    OctreeNode **leaves = new OctreeNode *[numOfIterations];
     RandomGenerator randgen;
 
-    // he created a vector of indecies
+    // Init the vector with the ids
     vector<int> ids;
     ids.reserve(fullLeaves.size());
     for (i = 0; i < (int) fullLeaves.size(); ++i) ids.push_back(i);
 
-    cout << "numOfIterations is : " << numOfIterations << endl;
-    cout << "fullLeaves.size " << fullLeaves.size() << endl;
-    // Sample the leaves at random (seeded)
+    // Sample the leaves at random
     for (i = 0; i < numOfIterations; ++i) {
         // Choose a random position within the array of ids
-        int rand_pos = randgen.getRandomInteger(0, fullLeaves.size() - 1);
-        //cout << "rand_pose : " << rand_pos << endl;
+        int rand_pos = randgen.getRandomInteger(0, ids.size() - 1);
         // Get the id at that random position
         leaves[i] = fullLeaves[ids[rand_pos]];
         // Delete the selected id
-        //ids.erase(ids.begin() + rand_pos);
+        ids.erase(ids.begin() + rand_pos);
     }
 
     // Sample the oriented point pairs
     this->sampleOrientedPointPairs(leaves, numOfIterations, mSampledPairs);
-
     // Generate the object hypotheses
     this->generateHypotheses(mSampledPairs);
-    cout << "number of sampled pairs : " << mSampledPairs.size() << endl; // added by me
-
     list<AcceptedHypothesis> accepted_hypotheses;
     // Accept hypotheses
     this->acceptHypotheses(accepted_hypotheses);
@@ -255,11 +216,6 @@ void ObjRecRANSAC::doRecognition(vtkPoints *scene, double successProbability, li
     list<ORRPointSetShape *> detectedShapes;
     this->gridBasedFiltering(mShapes, detectedShapes);
 
-
-    for (auto shape : detectedShapes)
-    {
-        cout << shape->getLabel() << endl;
-    }
     // Save the shapes in 'out'
     for (list<ORRPointSetShape *>::iterator it = detectedShapes.begin(); it != detectedShapes.end(); ++it) {
         PointSetShape *shape = new PointSetShape(*it);
@@ -288,17 +244,11 @@ void ObjRecRANSAC::doRecognition(vtkPoints *scene, double successProbability, li
     }
 
     mLastOverallRecognitionTimeSec = overallStopwatch.stop();
-
-    auto endTime = std::chrono::steady_clock::now();
-    std::chrono::duration<double> recognitionDuration = endTime - startTime;
-    cout << "It took " << recognitionDuration.count() << " Second to recognize the objects " << endl;
-
 }
+
 //=============================================================================================================================
 
 void ObjRecRANSAC::sampleOrientedPointPairs(OctreeNode **leaves1, int numOfLeaves, list<OrientedPair> &pairs) {
-
-
     OctreeNode *leaf2;
     ORROctreeNodeData *data1, *data2;
     const double *point1, *point2, *normal1, *normal2;
@@ -339,6 +289,7 @@ void ObjRecRANSAC::sampleOrientedPointPairs(OctreeNode **leaves1, int numOfLeave
             continue;
         // Get the node point
         point2 = data2->getPoint();
+
         // Save the sampled point pair
         pairs.push_back(OrientedPair(point1, normal1, point2, normal2));
     }
@@ -391,7 +342,6 @@ void ObjRecRANSAC::generateHypotheses(const list<OrientedPair> &pairs) {
     mRigidTransforms = new double[12 * mNumOfHypotheses];
     mPointSetPointers = new const double *[mNumOfHypotheses];
     mPairIds = new int[mNumOfHypotheses];
-    cout << "number of Hypotheses is : " << mNumOfHypotheses << endl;  //added by adel
     mModelEntryPointers = new DatabaseModelEntry *[mNumOfHypotheses];
 
     double *rigid_transform = mRigidTransforms;
@@ -568,6 +518,7 @@ void ObjRecRANSAC::acceptHypotheses(list<AcceptedHypothesis> &acceptedHypotheses
 
         // Get the best match for the i-th pair from all threads
         for (k = 0; k < mNumOfThreads; ++k) {
+
             // Check the result of this thread for the i-th pair
             if (thread_info[k].pair_result[i].match > accepted.match) {
                 accepted.model_entry = thread_info[k].pair_result[i].model_entry;
@@ -575,6 +526,8 @@ void ObjRecRANSAC::acceptHypotheses(list<AcceptedHypothesis> &acceptedHypotheses
                 accepted.rigid_transform = thread_info[k].pair_result[i].transform;
             }
         }
+
+
         if (accepted.match > 0)
             acceptedHypotheses.push_back(accepted);
     }
