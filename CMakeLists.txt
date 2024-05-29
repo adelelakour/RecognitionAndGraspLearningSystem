@@ -3,7 +3,6 @@ cmake_minimum_required(VERSION 3.20)
 
 set(VTK_DIR ${CMAKE_CURRENT_LIST_DIR}/vtk-install/lib/vtk-5.10)
 
-find_package(PCL 1.13 REQUIRED)
 cmake_policy(SET CMP0053 OLD)
 find_package(VTK)
 find_package(OpenCV REQUIRED)
@@ -35,12 +34,9 @@ if(CMAKE_COMPILER_IS_GNUCXX)
 endif()
 
 
-include_directories(${PCL_INCLUDE_DIRS})
 include_directories(/usr/local/include/AndreiUtils)
 include_directories(/usr/local/include/nlohmann)
 
-link_directories(${PCL_LIBRARY_DIRS})
-add_definitions(${PCL_DEFINITIONS})
 
 # inherit all CMAKE_CXX_FLAGS in subprojects
 add_subdirectory(src/BasicTools)
@@ -50,7 +46,7 @@ add_subdirectory(src/ObjRecRANSACVis)
 add_subdirectory(src/VtkBasics)
 add_subdirectory(src/VtkVisual)
 
-include_directories(${PCL_INCLUDE_DIRS} ${CMAKE_BINARY_DIR} /include/json/include/nlohmann /usr/local/include/AndreiUtils)
+include_directories( ${CMAKE_BINARY_DIR} /include/json/include/nlohmann /usr/local/include/AndreiUtils)
 
 
 message("VTK LIB DIR: ${VTK_LIBRARY_DIRS}")
@@ -83,7 +79,6 @@ target_link_libraries(RealsenseObjRec
         BasicTools
         ${OpenCV_LIBS}
         ${AndreiUtils_LIBRARY}
-        ${PCL_LIBRARIES}
         OpenNI
         realsense2
         glfw

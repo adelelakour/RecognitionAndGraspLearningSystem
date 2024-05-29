@@ -18,10 +18,6 @@
 #include <unordered_map>
 #include <array>
 
-// PCL 
-#include <pcl/io/ply_io.h>
-#include <pcl/point_types.h>
-
 // RealSense
 #include <librealsense2/rs.hpp>
 #include "example.hpp"
