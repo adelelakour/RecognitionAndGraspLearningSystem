@@ -7,6 +7,7 @@ cmake_policy(SET CMP0053 OLD)
 find_package(VTK)
 find_package(OpenCV REQUIRED)
 find_package(realsense2 REQUIRED)
+find_package(AndreiUtils REQUIRED json eigen)
 
 
 message("This program uses VTK ${VTK_DIR} .. ")
