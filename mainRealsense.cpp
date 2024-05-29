@@ -190,7 +190,7 @@ void objrec_func(void *v_pipe, std::atomic<bool> &exitFlag, std::atomic<bool> &p
         utils_convert_to_vtk(pointCloudMat, scene_in, 100);
 
         // Scene preprocessing
-        bool removePlane = false;
+        bool removePlane = true;
         double maxz = 1050.0;  // in mm
         vtkPoints *scene_out = preprocessScene(scene_in, maxz, removePlane); //
 
@@ -231,10 +231,7 @@ void objrec_func(void *v_pipe, std::atomic<bool> &exitFlag, std::atomic<bool> &p
 
             cout << "Pose_of_detected_shape_in_16 is .. \n" << endl;
 
-             for (auto d : Pose_of_detected_shape_in_16)
-             {
-                 cout << d << endl;
-             }
+            cout << "start here" << endl;
 
             Pose_of_detected_shape_in_16[3] /= 1000;
             Pose_of_detected_shape_in_16[7] /= 1000;
@@ -243,9 +240,17 @@ void objrec_func(void *v_pipe, std::atomic<bool> &exitFlag, std::atomic<bool> &p
             // I retrieve the two contact points for this shape from the json file
             vector<array<double, 3>> TWO_CONT_POINTS;
 
-            auto Grasp_of_detected_shape = JsonData[RobotHand][Object_Label][GraspNumber]["CNT_PNT"];
-            array<double,3> CNT_PNT_1 = Grasp_of_detected_shape[0];
-            array<double,3> CNT_PNT_2 = Grasp_of_detected_shape[1];
+            if (Object_Label == "none") {
+                break;
+            } else {
+                auto Grasp_of_detected_shape = JsonData[RobotHand][Object_Label][GraspNumber]["CNT_PNT"];
+                if (Grasp_of_detected_shape.is_array()) {
+                    array<double, 3> CNT_PNT_1;
+                    array<double, 3> CNT_PNT_2;
+                    for (int x = 0; x < 3; ++x) {
+                        CNT_PNT_1[x] = Grasp_of_detected_shape[0][x];
+                        CNT_PNT_2[x] = Grasp_of_detected_shape[1][x];
+                    }
 
                     cout << "CNT_PNT_1 is .. " << CNT_PNT_1[0] << ", " << CNT_PNT_1[1] << ", " << CNT_PNT_1[2] << endl;
                     cout << "CNT_PNT_2 is .. " << CNT_PNT_2[0] << ", " << CNT_PNT_2[1] << ", " << CNT_PNT_2[2] << endl;
@@ -260,12 +265,13 @@ void objrec_func(void *v_pipe, std::atomic<bool> &exitFlag, std::atomic<bool> &p
                         Mean_point_to_Panda[i] = (CNT_PNT_1[i] + CNT_PNT_2[i]) / 2;
                     }
 
-            // so far, I've the mean, the pose of object w.r.t camera frame, the grasping approach
+                    saveGraspingDataForPanda(Object_Label,
+                                              Pose_of_detected_shape_in_16,
+                                              CNT_PNT_1,
+                                              CNT_PNT_2,
+                                              Grasp_Approach_Direction);
+                }
 
-            saveGraspingDataForPanda(Object_Label,
-                                     Pose_of_detected_shape_in_16,
-                                     Mean_point_to_Panda,
-                                     Grasp_Approach_Direction);
             }
 
         }
