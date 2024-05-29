@@ -56,7 +56,6 @@ void utils_vis(ObjRecRANSAC *objrec,
                bool visualizeSceneRange,
                bool visualizeOctree,
                bool visualizeSampledPointPairs)
-
 {
     printf("visualizing ...\n");
     fflush(stdout);
@@ -150,7 +149,7 @@ void utils_vis(ObjRecRANSAC *objrec,
         }
 
 
-        cout << "shape_pose_in_eigen is : \n" << shape_pose_in_eigen << endl;
+        cout << shape->getUserData()->getLabel() << " pose_in_eigen is : \n" << shape_pose_in_eigen << endl;
 
         Eigen::Vector4d PNT1_transformed = shape_pose_in_eigen * PNT1_eigen;
         Eigen::Vector4d PNT2_transformed = shape_pose_in_eigen * PNT2_eigen;
