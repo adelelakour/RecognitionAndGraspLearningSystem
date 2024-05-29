@@ -39,7 +39,6 @@ using json = nlohmann::json;
 namespace fs = std::filesystem;
 
 
-
 std::string Offline_generated_grasps = "../files/Database_22_highQualityGrasps.json";
 std::string to_panda_json = "../files/Grasping_Data_to_Panda.json";
 std::string RobotHand = "Panda Gripper";
@@ -62,7 +61,7 @@ vtkPoints *preprocessScene(vtkPoints *scene_in, double depthThreshold, bool remo
 
 //######################################################################################################################
 
-Eigen::Matrix4d estimatedPOSEinEigen(const double* rigidTransform) {
+Eigen::Matrix4d estimatedPOSEinEigen(const double *rigidTransform) {
 
     // Extract rotation matrix elements
     Eigen::Matrix3d rotationMatrix;
@@ -82,14 +81,16 @@ Eigen::Matrix4d estimatedPOSEinEigen(const double* rigidTransform) {
 }
 
 //**********************************
-Eigen::Vector4f arrayToEigenVector(const double * array) {
+Eigen::Vector4f arrayToEigenVector(const double *array) {
     Eigen::Vector4f vector;
     vector << array[0], array[1], array[2], 1.0f; // Set the last element to 1
     return vector;
 }
 
 //**********************************
-void saveGraspingDataForPanda(const std::string& label, std::array<double, 16>  estimatedPose, std::array<double, 3> Mean_gripper, std::array<double, 3> AppDir) {
+void
+saveGraspingDataForPanda(const std::string &label, std::array<double, 16> estimatedPose, std::array<double, 3> CNT_P_1,
+                         std::array<double, 3> CNT_P_2, std::array<double, 3> AppDir) {
 
     json oldData;
     std::ifstream inputFile(to_panda_json);
@@ -103,15 +104,17 @@ void saveGraspingDataForPanda(const std::string& label, std::array<double, 16>  
     // Fill the JSON object with your data
     json newData;
     newData["estimatedPose"] = estimatedPose;
-    newData["Mean_gripper"] = {Mean_gripper[0], Mean_gripper[1], Mean_gripper[2]};
+    newData["CNT_PNT"] = {
+            {CNT_P_1[0], CNT_P_1[1], CNT_P_1[2]},
+            {CNT_P_2[0], CNT_P_2[1], CNT_P_2[2]}
+    };
+
     newData["AppDir"] = {AppDir[0], AppDir[1], AppDir[2]};
 
-    if (oldData.contains(label))
-    {
+    if (oldData.contains(label)) {
         // If the label already exists, you can update the data for that label
         oldData[label] = newData;
-    } else
-    {
+    } else {
         // If the label doesn't exist, simply add the new data
         oldData[label] = newData;
     }
@@ -171,8 +174,8 @@ void objrec_func(void *v_pipe, std::atomic<bool> &exitFlag, std::atomic<bool> &p
         int h = color_frame.as<rs2::video_frame>().get_height();
 
         // Create cv::Mat for color and depth frames
-        cv::Mat color_image(cv::Size(w, h), CV_8UC3, (void*)color_frame.get_data(), cv::Mat::AUTO_STEP);
-        cv::Mat depth_image(cv::Size(w, h), CV_16U, (void*)depth_frame.get_data(), cv::Mat::AUTO_STEP);
+        cv::Mat color_image(cv::Size(w, h), CV_8UC3, (void *) color_frame.get_data(), cv::Mat::AUTO_STEP);
+        cv::Mat depth_image(cv::Size(w, h), CV_16U, (void *) depth_frame.get_data(), cv::Mat::AUTO_STEP);
 
         int width = depth_frame.as<rs2::video_frame>().get_width();
         int height = depth_frame.as<rs2::video_frame>().get_height();
@@ -180,7 +183,7 @@ void objrec_func(void *v_pipe, std::atomic<bool> &exitFlag, std::atomic<bool> &p
         rs2::pointcloud pc;
         rs2::points points = pc.calculate(depth_frame);
 
-        cv::Mat pointCloudMat(cv::Size(width, height), CV_32FC3, (void*)points.get_vertices(), cv::Mat::AUTO_STEP);
+        cv::Mat pointCloudMat(cv::Size(width, height), CV_32FC3, (void *) points.get_vertices(), cv::Mat::AUTO_STEP);
 
         // Convert to vtkPoints
         vtkPoints *scene_in = vtkPoints::New(VTK_DOUBLE);
@@ -207,9 +210,10 @@ void objrec_func(void *v_pipe, std::atomic<bool> &exitFlag, std::atomic<bool> &p
 
         unordered_map<string, array<array<double, 3>, 2>> obj_vs_points;
 
-        for (auto& detected_shape : shapes) {
+        for (auto &detected_shape: shapes) {
 
-            string Object_Label = detected_shape->getUserData()->getLabel();
+            string Object_Label = "none";
+            Object_Label = detected_shape->getUserData()->getLabel();
 
             cout << "I detected " << Object_Label << endl;
 
@@ -217,14 +221,15 @@ void objrec_func(void *v_pipe, std::atomic<bool> &exitFlag, std::atomic<bool> &p
 
             Eigen::Matrix4d Pose_of_detected_shape_IN_Eigen = estimatedPOSEinEigen(Pose_of_detected_shape);
 
-            array <double, 16> Pose_of_detected_shape_in_16;
-             for (int i = 0; i < 4; ++i) {
-                    for (int j = 0; j < 4; ++j) {
-                        Pose_of_detected_shape_in_16[i * 4 + j] = static_cast<double>(Pose_of_detected_shape_IN_Eigen(i, j));
-                    }
+            array<double, 16> Pose_of_detected_shape_in_16;
+            for (int i = 0; i < 4; ++i) {
+                for (int j = 0; j < 4; ++j) {
+                    Pose_of_detected_shape_in_16[i * 4 + j] = static_cast<double>(Pose_of_detected_shape_IN_Eigen(i,
+                                                                                                                  j));
                 }
+            }
 
-             cout << "Pose_of_detected_shape_in_16 is .. \n" << endl;
+            cout << "Pose_of_detected_shape_in_16 is .. \n" << endl;
 
              for (auto d : Pose_of_detected_shape_in_16)
              {
@@ -235,7 +240,6 @@ void objrec_func(void *v_pipe, std::atomic<bool> &exitFlag, std::atomic<bool> &p
             Pose_of_detected_shape_in_16[7] /= 1000;
             Pose_of_detected_shape_in_16[11] /= 1000;
 
-
             // I retrieve the two contact points for this shape from the json file
             vector<array<double, 3>> TWO_CONT_POINTS;
 
@@ -243,19 +247,18 @@ void objrec_func(void *v_pipe, std::atomic<bool> &exitFlag, std::atomic<bool> &p
             array<double,3> CNT_PNT_1 = Grasp_of_detected_shape[0];
             array<double,3> CNT_PNT_2 = Grasp_of_detected_shape[1];
 
-            cout << "CNT_PNT_1 is .. " << CNT_PNT_1 [0] << ", " << CNT_PNT_1[1] << ", " << CNT_PNT_1[2] << endl;
-            cout << "CNT_PNT_2 is .. " << CNT_PNT_2 [0] << ", " << CNT_PNT_2[1] << ", " << CNT_PNT_2[2] << endl;
+                    cout << "CNT_PNT_1 is .. " << CNT_PNT_1[0] << ", " << CNT_PNT_1[1] << ", " << CNT_PNT_1[2] << endl;
+                    cout << "CNT_PNT_2 is .. " << CNT_PNT_2[0] << ", " << CNT_PNT_2[1] << ", " << CNT_PNT_2[2] << endl;
 
 
-            auto Grasp_Approach = JsonData[RobotHand][Object_Label][GraspNumber]["APP_DIR"];
-            std::array<double, 3> Grasp_Approach_Direction = Grasp_Approach;
+                    auto Grasp_Approach = JsonData[RobotHand][Object_Label][GraspNumber]["APP_DIR"];
+                    std::array<double, 3> Grasp_Approach_Direction = Grasp_Approach;
 
 
-            std::array<double, 3> Mean_point_to_Panda;
-            for (int i = 0; i < 3; i++)
-            {
-                Mean_point_to_Panda [i] = (CNT_PNT_1[i] + CNT_PNT_2[i])/2;
-            }
+                    std::array<double, 3> Mean_point_to_Panda;
+                    for (int i = 0; i < 3; i++) {
+                        Mean_point_to_Panda[i] = (CNT_PNT_1[i] + CNT_PNT_2[i]) / 2;
+                    }
 
             // so far, I've the mean, the pose of object w.r.t camera frame, the grasping approach
 
@@ -265,8 +268,12 @@ void objrec_func(void *v_pipe, std::atomic<bool> &exitFlag, std::atomic<bool> &p
                                      Grasp_Approach_Direction);
             }
 
+        }
 
-        utils_vis(&objrec, scene_out, shapes,false , false , false);
+        // so far, I've the mean, the pose of object w.r.t camera frame, the grasping approach
+
+
+        utils_vis(&objrec, scene_out, shapes, false, false, false);
 
         // Cleanup
         for (auto &shape: shapes) {
@@ -284,7 +291,7 @@ void objrec_func(void *v_pipe, std::atomic<bool> &exitFlag, std::atomic<bool> &p
         delete it;
     }
     // Destroy the readers
-    for (auto &reader : readers) {
+    for (auto &reader: readers) {
         reader->Delete();
         reader->Delete();
     }
@@ -294,12 +301,12 @@ void objrec_func(void *v_pipe, std::atomic<bool> &exitFlag, std::atomic<bool> &p
 }
 
 //**********************************
-vtkPoints* readVTKPointCloud(const std::string& filePath) {
-    vtkPolyDataReader* reader = vtkPolyDataReader::New();
+vtkPoints *readVTKPointCloud(const std::string &filePath) {
+    vtkPolyDataReader *reader = vtkPolyDataReader::New();
     reader->SetFileName(filePath.c_str());
     reader->Update();
 
-    vtkPoints* points = reader->GetOutput()->GetPoints()->NewInstance();
+    vtkPoints *points = reader->GetOutput()->GetPoints()->NewInstance();
     points->DeepCopy(reader->GetOutput()->GetPoints());
 
     reader->Delete();
@@ -326,8 +333,7 @@ void loadModels(ObjRecRANSAC &objrec, list<UserData *> &userDataList, list<vtkPo
         fflush(stdout);       //The function fflush() is used to clear stdout buffer
 
 
-        for (auto const &item : fs::directory_iterator(PATH_of_vtk_models))
-        {
+        for (auto const &item: fs::directory_iterator(PATH_of_vtk_models)) {
             std::string model_name = item.path().stem().string();
             std::string model_path = item.path().string();
             modelLabels.emplace_back(model_name);
@@ -374,7 +380,6 @@ void loadModels(ObjRecRANSAC &objrec, list<UserData *> &userDataList, list<vtkPo
 
 
 //**********************************
-
 vtkPoints *preprocessScene(vtkPoints *in, double depthThreshold, bool removePlane) {
     vtkPoints *nearScene, *out = vtkPoints::New(VTK_DOUBLE);
     bool withLimitDepthThreshold = depthThreshold > 0.0;
@@ -409,7 +414,7 @@ vtkPoints *preprocessScene(vtkPoints *in, double depthThreshold, bool removePlan
 
         // Get the points above the plane
         int i = 0;
-        for (int &abovePlanePointId : abovePlanePointIds) {
+        for (int &abovePlanePointId: abovePlanePointIds) {
             nearScene->GetPoint(abovePlanePointId, p);
             out->SetPoint(i++, p);
         }
@@ -445,7 +450,7 @@ int main() {
 
     std::string modelDir = MODEL_DIR;
 
-    objrec_func (&pipe, std::ref(exitFlag), std::ref(performRecognition), true, modelDir);
+    objrec_func(&pipe, std::ref(exitFlag), std::ref(performRecognition), true, modelDir);
 
     for (int i = 0; i < 2048; ++i) {
         auto v = float(i / 2048.0);
